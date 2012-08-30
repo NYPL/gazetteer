@@ -61,6 +61,8 @@ $(function() {
         e.preventDefault();
         var bbox = map.getBounds().toBBoxString();
         var search_term = $('#searchField').val();
+        location.hash = search_term;
+        jsonLayer.clearLayers();
         $('#searchField').addClass("loading");
         $('#searchTerm').text(search_term);
         $('#searchField').attr("disabled", "disabled");
@@ -95,7 +97,7 @@ $(function() {
             }
             $('#searchField').removeAttr("disabled");
             $('#searchField').removeClass("loading");
-            jsonLayer.clearLayers();
+
             jsonLayer.addData(features);
             for (var i=0; i<features.features.length;i++) {
                 var f = features.features[i];
@@ -106,6 +108,10 @@ $(function() {
         });
     });
 
+    if ($.trim(location.hash) !== '') {
+        $('#searchField').val(location.hash.replace("#", ""));
+        $('#searchForm').submit();
+    }
     /* pagination code */
     $('.first').click(function() {
         $('#page_no').val('1');
