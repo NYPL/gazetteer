@@ -1,51 +1,79 @@
+var map;
+var geojsonMarkerOptions = {
+    radius: 8,
+    fillColor: "#00f",
+    color: "#000",
+    weight: 1,
+    opacity: 1,
+    fillOpacity: 0.8
+};
+
 $(function() {
     $('.mapListSection').css({'opacity': 0});
     $('#jsonLink').hide();
-    map = new OpenLayers.Map('map', {});
-    var baseLayer = new OpenLayers.Layer.OSM( "Openstreetmap Base Layer");
-//    map.addLayer(baseLayer);
-    var geojson_format = new OpenLayers.Format.GeoJSON();
-    var jsonLayer = new OpenLayers.Layer.Vector();
 
-    map.addLayers([baseLayer, jsonLayer]);
-    var center = new OpenLayers.LonLat(-95, 37.5).transform(
-                    new OpenLayers.Projection("EPSG:4326"),
-                    map.getProjectionObject()
-                ); 
-    map.setCenter(center, 4);
-    var mapControl = new OpenLayers.Control.SelectFeature(jsonLayer, {hover: true});
-    map.addControl(mapControl);
-    mapControl.activate();
-    jsonLayer.events.on({
-      'featureselected': onFeatureSelect,
-      'featureunselected': onFeatureUnselect
-    }); 
-
-
-    function getFeatureById(id) {
-      var features = jsonLayer.features;
-      for (var i=0; i < features.length; i++) {
-        if (features[i].attributes.id == id) {
-          return features[i];
+    
+    var osmUrl='http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+    var osmAttrib='Map data © openstreetmap contributors';
+    var osm = new L.TileLayer(osmUrl,{minZoom:1,maxZoom:18,attribution:osmAttrib});
+    map = new L.Map('map', {layers: [osm], center: new L.LatLng(34.11577, -93.855211), zoom: 4 });
+    jsonLayer = L.geoJson(null, {
+        onEachFeature: function(feature, layer) {
+            //console.log(feature);
+            feature.properties.highlighted = false;
+            var id = feature.properties.id;
+            layer.on("mouseover", function(e) {
+                var $row = $('#feature' + id);
+                $row.addClass('highlighted');
+                //console.log("FOOOOOOOO");                
+                //console.log("entered " + id);
+            });
+            layer.on("mouseout", function(e) {
+                var $row = $('#feature' + id);
+                $row.removeClass("highlighted");
+                //console.log("left " + id);
+            });
+        },
+        pointToLayer: function(feature, latlng) {
+            return L.circleMarker(latlng, geojsonMarkerOptions);
         }
-      }  
-      return false;
-    }
+
+    }).addTo(map);
+//    map = new OpenLayers.Map('map', {});
+//    var baseLayer = new OpenLayers.Layer.OSM( "Openstreetmap Base Layer");
+////    map.addLayer(baseLayer);
+//    var geojson_format = new OpenLayers.Format.GeoJSON();
+//    var jsonLayer = new OpenLayers.Layer.Vector();
+
+//    map.addLayers([baseLayer, jsonLayer]);
+//    var center = new OpenLayers.LonLat(-95, 37.5).transform(
+//                    new OpenLayers.Projection("EPSG:4326"),
+//                    map.getProjectionObject()
+//                ); 
+//    map.setCenter(center, 4);
+//    var mapControl = new OpenLayers.Control.SelectFeature(jsonLayer, {hover: true});
+//    map.addControl(mapControl);
+//    mapControl.activate();
+//    jsonLayer.events.on({
+//      'featureselected': onFeatureSelect,
+//      'featureunselected': onFeatureUnselect
+//    }); 
+
 
     $('#searchForm').submit(function(e) {
         e.preventDefault();
-        var bbox = map.getExtent().toBBOX();
+        var bbox = map.getBounds().toBBoxString();
         var search_term = $('#searchField').val();
         $('#searchField').addClass("loading");
         $('#searchTerm').text(search_term);
         $('#searchField').attr("disabled", "disabled");
         $('#mapList tbody').empty();
-        var url = "/feature/search.json?" + 'bbox=' + bbox + '&q=' + search_term + '&srid=' + '3785' + '&count=20&page=' + $('#page_no').val();
+        var url = "/feature/search.json?" + 'bbox=' + bbox + '&q=' + search_term + '&srid=' + '4326' + '&count=20&page=' + $('#page_no').val();
         $('#jsonLink').attr("href", url); 
         $.getJSON("/feature/search.json", {
             'bbox': bbox,
             'q': search_term,
-            'srid': 3785,
+            'srid': 4326,
             'threshold': 0.5,
             'count': 20,
             'page': $('#page_no').val()
@@ -64,11 +92,13 @@ $(function() {
             $('#totalPages').text(features.pages);
             $('#searchField').removeAttr("disabled");
             $('#searchField').removeClass("loading");
+            jsonLayer.clearLayers();
+            jsonLayer.addData(features);
 //            var headerRow = getHeaderRow();
 //            console.log(response);
-            var currFeatures = jsonLayer.features;
-            jsonLayer.removeFeatures(currFeatures);
-            jsonLayer.addFeatures(geojson_format.read(features));
+//            var currFeatures = jsonLayer.features;
+//            jsonLayer.removeFeatures(currFeatures);
+//            jsonLayer.addFeatures(geojson_format.read(features));
             for (var i=0; i<features.features.length;i++) {
                 var f = features.features[i];
                 var props = f.properties;
@@ -110,13 +140,18 @@ $(function() {
 
     function getRow(props) {
         var $tr = $('<tr />').attr("id", "feature" + props.id).data("id", props.id).hover(function() {
-            var id = $(this).data("id");
-            var feature = getFeatureById(id);
-            mapControl.select(feature);
+            var id = $(this).attr("id");
+            id = id.replace("feature", "");
+            var layer = getFeatureById(id);
+            layer.feature.properties.highlighted = true;
+            jsonLayer.setStyle(styleFunc);
+            //layer.feature.properties.highlighted = true;
         }, function() {
-            var id = $(this).data("id");
-            var feature = getFeatureById(id);
-            mapControl.unselect(feature);            
+            var id = $(this).attr("id");
+            id = id.replace("feature", "");
+            var layer = getFeatureById(id);
+            layer.feature.properties.highlighted = false;
+            jsonLayer.setStyle(styleFunc);            
         });
         var $one = $('<td />').appendTo($tr);
         var $a = $('<a />').attr("href", "/admin/places/feature/" + props.id).text(props.preferred_name).appendTo($one);
@@ -133,21 +168,50 @@ $(function() {
 });
 
 
-function onFeatureSelect(f) {
-    var id = f.feature.attributes.id;
-//    $('.highlightOverlay').hide().remove();
-  //  $('img').removeClass('mapSelect');
-    var $tr = $('#feature' + id);
-    $tr.css({"backgroundColor": "#C4DFFB"});
+function getFeatureById(feature_id) {
+    //var ret = false;
+    //console.log("Feature_id", feature_id);
+    //var id = feature_id.replace("feature", "");
+    var ret = false;
+    jsonLayer.eachLayer(function(layer) {
+        if (layer.feature.properties.id == feature_id) {
+            ret = layer;
+        }
+    });
+    return ret;
 }
 
-function onFeatureUnselect(f) {
-    var id = f.feature.attributes.id;
-//    $('.highlightOverlay').hide().remove();
-  //  $('img').removeClass('mapSelect');
-    var $tr = $('#feature' + id);
-    $tr.css({"backgroundColor": "#ffffff"});    
+function styleFunc(feature) {
+    switch (feature.properties.highlighted) {
+        case true:
+            return {
+                'color': '#f00',
+                'fillColor': '#f00'                
+            };
+        case false:
+            return {
+                'color' : '#000',
+                'fillColor': '#00f'
+            }   
+    } 
 }
+
+
+//function onFeatureSelect(f) {
+//    var id = f.feature.attributes.id;
+////    $('.highlightOverlay').hide().remove();
+//  //  $('img').removeClass('mapSelect');
+//    var $tr = $('#feature' + id);
+//    $tr.css({"backgroundColor": "#C4DFFB"});
+//}
+
+//function onFeatureUnselect(f) {
+//    var id = f.feature.attributes.id;
+////    $('.highlightOverlay').hide().remove();
+//  //  $('img').removeClass('mapSelect');
+//    var $tr = $('#feature' + id);
+//    $tr.css({"backgroundColor": "#ffffff"});    
+//}
 
 /*
 function getLi(props) {
