@@ -1,12 +1,24 @@
 var map;
-var geojsonMarkerOptions = {
-    radius: 8,
-    fillColor: "#00f",
-    color: "#000",
+
+var geojsonDefaultCSS = {
+    radius: 5,
+    fillColor: "#7CA0C7",
+    color: "#18385A",
+    weight: 1,
+    opacity: 0.7,
+    fillOpacity: 0.5
+};
+
+var geojsonHighlightedCSS = {
+    radius: 6,
+    fillColor: '#F15913',
+    color: '#f00',
     weight: 1,
     opacity: 1,
-    fillOpacity: 0.8
+    fillOpacity: 0.6
 };
+
+var feature_url_prefix = "/admin/places/feature/";
 
 $(function() {
     $('.mapListSection').css({'opacity': 0});
@@ -19,46 +31,26 @@ $(function() {
     map = new L.Map('map', {layers: [osm], center: new L.LatLng(34.11577, -93.855211), zoom: 4 });
     jsonLayer = L.geoJson(null, {
         onEachFeature: function(feature, layer) {
-            //console.log(feature);
             feature.properties.highlighted = false;
             var id = feature.properties.id;
             layer.on("mouseover", function(e) {
                 var $row = $('#feature' + id);
                 $row.addClass('highlighted');
-                //console.log("FOOOOOOOO");                
-                //console.log("entered " + id);
             });
             layer.on("mouseout", function(e) {
                 var $row = $('#feature' + id);
                 $row.removeClass("highlighted");
-                //console.log("left " + id);
+            });
+            layer.on("click", function(e) {
+                var url = feature_url_prefix + feature.properties.id;
+                location.href = url;
             });
         },
         pointToLayer: function(feature, latlng) {
-            return L.circleMarker(latlng, geojsonMarkerOptions);
+            return L.circleMarker(latlng, geojsonDefaultCSS);
         }
 
     }).addTo(map);
-//    map = new OpenLayers.Map('map', {});
-//    var baseLayer = new OpenLayers.Layer.OSM( "Openstreetmap Base Layer");
-////    map.addLayer(baseLayer);
-//    var geojson_format = new OpenLayers.Format.GeoJSON();
-//    var jsonLayer = new OpenLayers.Layer.Vector();
-
-//    map.addLayers([baseLayer, jsonLayer]);
-//    var center = new OpenLayers.LonLat(-95, 37.5).transform(
-//                    new OpenLayers.Projection("EPSG:4326"),
-//                    map.getProjectionObject()
-//                ); 
-//    map.setCenter(center, 4);
-//    var mapControl = new OpenLayers.Control.SelectFeature(jsonLayer, {hover: true});
-//    map.addControl(mapControl);
-//    mapControl.activate();
-//    jsonLayer.events.on({
-//      'featureselected': onFeatureSelect,
-//      'featureunselected': onFeatureUnselect
-//    }); 
-
 
     $('#searchForm').submit(function(e) {
         e.preventDefault();
@@ -94,11 +86,6 @@ $(function() {
             $('#searchField').removeClass("loading");
             jsonLayer.clearLayers();
             jsonLayer.addData(features);
-//            var headerRow = getHeaderRow();
-//            console.log(response);
-//            var currFeatures = jsonLayer.features;
-//            jsonLayer.removeFeatures(currFeatures);
-//            jsonLayer.addFeatures(geojson_format.read(features));
             for (var i=0; i<features.features.length;i++) {
                 var f = features.features[i];
                 var props = f.properties;
@@ -138,34 +125,34 @@ $(function() {
     });
     /* pagination code end */
 
-    function getRow(props) {
-        var $tr = $('<tr />').attr("id", "feature" + props.id).data("id", props.id).hover(function() {
-            var id = $(this).attr("id");
-            id = id.replace("feature", "");
-            var layer = getFeatureById(id);
-            layer.feature.properties.highlighted = true;
-            jsonLayer.setStyle(styleFunc);
-            //layer.feature.properties.highlighted = true;
-        }, function() {
-            var id = $(this).attr("id");
-            id = id.replace("feature", "");
-            var layer = getFeatureById(id);
-            layer.feature.properties.highlighted = false;
-            jsonLayer.setStyle(styleFunc);            
-        });
-        var $one = $('<td />').appendTo($tr);
-        var $a = $('<a />').attr("href", "/admin/places/feature/" + props.id).text(props.preferred_name).appendTo($one);
-    //    var $a2 = $('<a />').addClass("viewSimilar").attr("target", "_blank").attr("href", "/search_related?id=" + props.id).text("view similar").appendTo($one);
-        $('<td />').text(props.feature_type).appendTo($tr);
-        $('<td />').text(props.admin2).appendTo($tr);
-        $('<td />').text(props.admin1).appendTo($tr);
-        return $tr;     
-    }
-
-
-
-
 });
+
+
+
+function getRow(props) {
+    var $tr = $('<tr />').attr("id", "feature" + props.id).data("id", props.id).hover(function() {
+        var id = $(this).attr("id");
+        id = id.replace("feature", "");
+        var layer = getFeatureById(id);
+        layer.feature.properties.highlighted = true;
+        jsonLayer.setStyle(styleFunc);
+        layer.bringToFront();
+        //layer.feature.properties.highlighted = true;
+    }, function() {
+        var id = $(this).attr("id");
+        id = id.replace("feature", "");
+        var layer = getFeatureById(id);
+        layer.feature.properties.highlighted = false;
+        jsonLayer.setStyle(styleFunc);            
+    });
+    var $one = $('<td />').appendTo($tr);
+    var $a = $('<a />').attr("href", "/admin/places/feature/" + props.id).text(props.preferred_name).appendTo($one);
+//    var $a2 = $('<a />').addClass("viewSimilar").attr("target", "_blank").attr("href", "/search_related?id=" + props.id).text("view similar").appendTo($one);
+    $('<td />').text(props.feature_type).appendTo($tr);
+    $('<td />').text(props.admin2).appendTo($tr);
+    $('<td />').text(props.admin1).appendTo($tr);
+    return $tr;     
+}
 
 
 function getFeatureById(feature_id) {
@@ -184,15 +171,9 @@ function getFeatureById(feature_id) {
 function styleFunc(feature) {
     switch (feature.properties.highlighted) {
         case true:
-            return {
-                'color': '#f00',
-                'fillColor': '#f00'                
-            };
+            return geojsonHighlightedCSS;
         case false:
-            return {
-                'color' : '#000',
-                'fillColor': '#00f'
-            }   
+            return geojsonDefaultCSS;
     } 
 }
 
