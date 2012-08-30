@@ -23,12 +23,17 @@ var feature_url_prefix = "/admin/places/feature/";
 $(function() {
     $('.mapListSection').css({'opacity': 0});
     $('#jsonLink').hide();
-
+    $('#updateSearch')
+        .click(function() {
+            $('#searchForm').submit();
+        })
+        .hide();
     
     var osmUrl='http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
     var osmAttrib='Map data © openstreetmap contributors';
     var osm = new L.TileLayer(osmUrl,{minZoom:1,maxZoom:18,attribution:osmAttrib});
     map = new L.Map('map', {layers: [osm], center: new L.LatLng(34.11577, -93.855211), zoom: 4 });
+    
     jsonLayer = L.geoJson(null, {
         onEachFeature: function(feature, layer) {
             feature.properties.highlighted = false;
@@ -60,6 +65,7 @@ $(function() {
         $('#searchTerm').text(search_term);
         $('#searchField').attr("disabled", "disabled");
         $('#mapList tbody').empty();
+        $('#currPageNo').text('☎');
         var url = "/feature/search.json?" + 'bbox=' + bbox + '&q=' + search_term + '&srid=' + '4326' + '&count=20&page=' + $('#page_no').val();
         $('#jsonLink').attr("href", url); 
         $.getJSON("/feature/search.json", {
@@ -73,15 +79,20 @@ $(function() {
             if ($('.mapListSection').css("opacity") == '0') {
                 $('.mapListSection').animate({'opacity': '1'}, 1000);
                 $('#jsonLink').show();
+                $('#updateSearch').show();
             }
             if (features.hasOwnProperty("error") && features.error != '') {
                 alert(features.error);
                 return;
             }
-
+            
             $('#noOfResults').text(features.results);
             $('#currPageNo').text(features.current_page);
             $('#totalPages').text(features.pages);
+            if (features.results === 0) {
+                $('#currPageNo').text('0');
+                $('#totalPages').text('0');                
+            }
             $('#searchField').removeAttr("disabled");
             $('#searchField').removeClass("loading");
             jsonLayer.clearLayers();
