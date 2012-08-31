@@ -1,5 +1,4 @@
 $(function() {
-    alert("hi");
     $.getJSON("/feature/" + FEATURE_ID + "/similar.json", {
         
     }, function(data) {
