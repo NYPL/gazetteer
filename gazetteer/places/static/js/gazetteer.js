@@ -1,4 +1,6 @@
-var map;
+'use strict';
+
+var map, jsonLayer;
 
 var geojsonDefaultCSS = {
     radius: 5,
@@ -66,6 +68,7 @@ $(function() {
         $('#searchField').addClass("loading");
         $('#searchTerm').text(search_term);
         $('#searchField').attr("disabled", "disabled");
+        $('#searchButton').attr("disabled", "disabled");
         $('#mapList tbody').empty();
         $('#currPageNo').text('☎');
         var url = "/feature/search.json?" + 'bbox=' + bbox + '&q=' + search_term + '&srid=' + '4326' + '&count=20&page=' + $('#page_no').val();
@@ -97,7 +100,7 @@ $(function() {
             }
             $('#searchField').removeAttr("disabled");
             $('#searchField').removeClass("loading");
-
+            $('#searchButton').removeAttr("disabled");
             jsonLayer.addData(features);
             for (var i=0; i<features.features.length;i++) {
                 var f = features.features[i];
