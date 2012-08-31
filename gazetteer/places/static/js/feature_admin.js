@@ -1,4 +1,5 @@
 $(function() {
+    alert("hi");
     $.getJSON("/feature/" + FEATURE_ID + "/similar.json", {
         
     }, function(data) {
@@ -19,7 +20,7 @@ var RELATIONSHIP_OPTIONS = ['conflates', 'contains', 'replaces', 'supplants']
 function getRow(d) {
     var $tr = $('<tr />').data("id", d.id);
     var $one = $('<td />').appendTo($tr);
-    var $a = $('<a />').attr("href", "/admin/places/feature/" + d.id).text(d.preferred_name).appendTo($one);
+    var $a = $('<a />').attr("href", "/feature/" + d.id).text(d.preferred_name).appendTo($one);
     var similarity = Math.round(parseFloat(d.similarity) * 1000) / 10;
     var distance = Math.round(parseFloat(d.distance));
     $('<td />').text(d.feature_type).appendTo($tr);
@@ -38,7 +39,7 @@ function getRow(d) {
     if (d.related_by != '') {
 	var verb = d.related_by.replace(/e?s$/i, "");
 	var related_by = "is " + verb + "ed by";
-	var $relationselect = $('<a />').attr("href", "/admin/places/feature/" + d.id)
+	var $relationselect = $('<a />').attr("href", "/feature/" + d.id)
 					.text(related_by).appendTo($relations_td);
     } else {
 	var $relationselect = $('<select />').appendTo($relations_td);
