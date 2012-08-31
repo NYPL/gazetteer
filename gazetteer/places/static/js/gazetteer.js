@@ -20,7 +20,7 @@ var geojsonHighlightedCSS = {
     fillOpacity: 0.6
 };
 
-var feature_url_prefix = "/admin/places/feature/";
+var feature_url_prefix = "/feature/";
 
 $(function() {
     $('.mapListSection').css({'opacity': 0});
