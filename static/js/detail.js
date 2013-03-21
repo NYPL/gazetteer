@@ -1,4 +1,4 @@
-'use strict';
+//'use strict';
 
 var map, jsonLayer, similarPlacesLayer;
 
@@ -10,6 +10,7 @@ $(function() {
     map = new L.Map('map', {
         layers: [osm],
         center: new L.LatLng($G.centerLat, $G.centerLon),
+        //drawControl: true,
         zoom: $G.defaultZoom,
         crs: L.CRS.EPSG900913 
     });
@@ -249,7 +250,7 @@ $(function() {
         $('#timeframes *[disabled]').removeAttr("disabled");
         $('.removeAltName').show();
         $('#alternateNamesTable tfoot').show();
-
+        makeFeatureEditable();
         //handle feature code input with select2 autocomplete
         var featureCode = place_geojson.properties.feature_code;
         var featureCodeName = place_geojson.properties.feature_code_name;
@@ -382,6 +383,34 @@ $(function() {
 
 });
 
+function makeFeatureEditable() {
+
+    // Initialize the draw control and pass it the FeatureGroup of editable layers
+    var options = {
+        draw: false,
+        edit: {
+            featureGroup: jsonLayer//.getLayers()[0]
+        }        
+    };
+    var drawControl = new L.Control.Draw(options);
+    map.addControl(drawControl);
+
+    //jsonLayer.getLayers()[0].editing.enable();
+    map.on("draw:edited", function(e) {
+        var feature = e.layers.getLayers()[0];
+        setCoordinatesForFeature(feature);
+        place_geojson.geometry.coordinates = coords;
+        //place_geojson.geometry = geom;        
+    });   
+}
+
+function setCoordinatesForFeature(feature) {
+    var typ = feature.feature.geometry['type'];
+    var latlngs = feature.getLatLngs();
+    var coords = L.geoJSON.latLngToCoords(latlngs);
+    console.log(coords);    
+    return coords;
+}
 
 function styleFunc(feature) {
     switch (feature.properties.highlighted) {
@@ -398,7 +427,7 @@ function isEmptyPlace(geometry) {
     if (!geometry) return true;
     if ($.isEmptyObject(geometry)) return true;
     var coords = geometry.coordinates;
-    if (coords.length < 2) return true;
+    if (!coords) return true;
 //    if (parseFloat(coords[0]) > 0 && parseFloat(coords[0]) < 1 && parseFloat(coords[1]) > 0 && parseFloat(coords[1]) < 1) return true;
     return false;
 }
