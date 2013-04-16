@@ -54,8 +54,9 @@
             </form>
             <br />
 
-            
-            <a href="{% url 'edit_place' place_id=place.id %}" data-state="" id="editPlace" class="button">Edit</a> <span id="saveStatus"></span>
+            {% if user.is_authenticated %} 
+                <a href="{% url 'edit_place' place_id=place.id %}" data-state="" id="editPlace" class="button">Edit</a> <span id="saveStatus"></span>
+            {% endif %}
         </div> <!-- end topLeftPane -->
         <div class="topRightPane">
             <div class="map" id="map">
@@ -134,7 +135,9 @@
                             <em> - {{ revision.comment }}</em>
                             {% endif %}
                             {% if not forloop.last %}
+                            {% if user.is_authenticated %}
                             <a href="#{{ revision.digest }}" class="rollback_place" data-revision="{{ revision.digest }}">revert</a>
+                            {% endif %}
                             {% endif %}    
                         </li>
                    {% endfor %} 
@@ -162,9 +165,11 @@
                                 {{ relation.type }}
 
                             </td>
+                            {% if user.is_authenticated %}
                             <td class="deleteRelation">
                                 X
                             </td> 
+                            {% endif %}
                         </tr>
                             {% endfor %}
                         {% endif %}
@@ -174,13 +179,16 @@
                 </table>
 
                 <div class="similarPlacesCol">
-                    <a id="showSimilar" href="">Show Similar</a>
-                    <ul id="similarPlaces" style="display:none;">
-                        {% for p in similar_places.features %}
-                            <li class="similarPlace" data-id="{{ p.properties.id }}">
-                                <a class="similarPlaceA" href="{% url 'detail' place_id=p.properties.id %}">
-                                    {{ p.properties.name }}
+                    {% if place.is_composite == True %}
+                        <label for="searchPlace">Search for places</label>
+                        <input type="text" name="searchPlace" id="searchPlace" value="" />
+                        <input type="button" name="searchPlaceButton" id="searchPlaceButton" value=" Search " />
+                        <ul id="searchedPlaces">
+                            <li class="similarPlace blankSimilarPlace"  style="display:none" data-id="blank" >
+                                <a class="similarPlaceA" href="{% url 'detail' place_id=2 %}" >
+                                    <!--name -->
                                 </a>
+                               {% if user.is_authenticated %}
                                 <select class="relation_type">
                                     <option value="">------</option>
                                     {% for choice in RELATION_CHOICES.keys %}
@@ -190,6 +198,29 @@
                                     {% endfor %}                                                                    
                                 </select>
                                 <button class="addRelation">Add Relation</button>
+                                {% endif %}
+                            </li>
+                        </ul>
+                        <br />
+                    {% endif %}
+                    <a id="showSimilar" href="">Show Similar</a>
+                    <ul id="similarPlaces" style="display:none;">
+                        {% for p in similar_places.features %}
+                            <li class="similarPlace" data-id="{{ p.properties.id }}">
+                                <a class="similarPlaceA" href="{% url 'detail' place_id=p.properties.id %}">
+                                    {{ p.properties.name }}
+                                </a>
+                                {% if user.is_authenticated %}
+                                <select class="relation_type">
+                                    <option value="">------</option>
+                                    {% for choice in RELATION_CHOICES.keys %}
+                                    <option value="{{ choice }}">
+                                        {{ choice }}
+                                    </option>
+                                    {% endfor %}                                                                    
+                                </select>
+                                <button class="addRelation">Add Relation</button>
+                                {% endif %}
                             </li>                
                         {% endfor %}
                     </ul>

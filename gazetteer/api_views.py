@@ -3,7 +3,7 @@ from django.core.paginator import Paginator, InvalidPage, EmptyPage
 from django.db.models import Q
 #from django.http import HttpResponse
 from place import Place
-from pyelasticsearch.exceptions import ElasticHttpNotFoundError    
+from pyelasticsearch.exceptions import ElasticHttpNotFoundError
 try:
     import json
 except:
@@ -17,6 +17,54 @@ from django.contrib.gis.geos import GEOSGeometry
 from shortcuts import get_place_or_404
 import re
 
+
+@csrf_exempt 
+def new_place_json(request):
+    ''' Takes a GeoJSON string as POST data and saves it as a new place
+         saves and returns back geojson for the place
+    '''
+    if not request.user.is_authenticated():
+        return render_to_json_response({'error': 'You do not have permissions to do this.'}, status=403)
+        
+    if not request.method == 'POST':
+        return render_to_json_response({'error': 'Method Not Allowed'}, status=405)
+        
+    geojson = json.loads(request.body)
+    if geojson.has_key("comment"):
+        comment = geojson.pop("comment")
+    else:
+        comment = ''
+    json_obj = geojson.pop("properties")
+    json_obj['geometry'] = geojson['geometry']
+    json_obj['centroid'] = []
+    if geojson["geometry"]:
+        centroid = GEOSGeometry(json.dumps(json_obj['geometry'])).centroid
+        json_obj['centroid'] = list(centroid.coords)      
+        
+    p = Place(json_obj)
+    
+    import random, hashlib
+    p.id = hashlib.md5(p.name + str(random.random())).hexdigest()[:16]        
+    p.relationships = []
+    
+    p.uris.append("http://gazetteer.in/feature/"+p.id)  #FIXME for the url
+    
+    if request.user.is_authenticated():
+        user = request.user.email
+    else:
+        user = 'unknown'
+        
+    metadata = {
+        'user': user,
+        'comment': comment
+    }
+    
+    p.save(metadata=metadata)
+    
+    return render_to_json_response(p.to_geojson())
+        
+        
+     
 @csrf_exempt
 def place_json(request, id):
 
@@ -28,7 +76,7 @@ def place_json(request, id):
         '''
         geo_json = place.to_geojson()
         return render_to_json_response(geo_json)
-
+    
     elif request.method == 'PUT':
         '''
             Takes a GeoJSON string as PUT data and saves Place
@@ -37,7 +85,8 @@ def place_json(request, id):
         #FIXME: check permissions
 #        if not request.user.is_staff():
 #            return render_to_json_response({'error': 'You do not have permissions to edit this place.'}, status=403)    
-
+        if not request.user.is_authenticated():
+            return render_to_json_response({'error': 'You do not have permissions to edit this place.'}, status=403) 
         geojson = json.loads(request.body)
         if geojson.has_key("comment"):
             comment = geojson.pop("comment")
@@ -50,7 +99,6 @@ def place_json(request, id):
         centroid = GEOSGeometry(json.dumps(json_obj['geometry'])).centroid
         json_obj['centroid'] = centroid.coords      
         
-        json_obj['updated'] = datetime.datetime.now().isoformat() #FIXME
         p = Place(json_obj)        
         
         if request.user.is_authenticated():
@@ -62,12 +110,15 @@ def place_json(request, id):
             'comment': comment
         }
 
-        Place.objects.save(p, metadata=metadata)
-        return render_to_json_response(p.to_geojson())
+        p.save(metadata=metadata)
+        new_place = Place.objects.get(id)
+        return render_to_json_response(new_place.to_geojson())
         
 
     elif request.method == 'DELETE':
         #check permissions / delete object       
+        if not request.user.is_authenticated():
+            return render_to_json_response({'error': 'You do not have permissions to delete this place.'}, status=403) 
         return render_to_json_response({'error': 'Not implemented'}, status=501)
 
     else:
@@ -212,11 +263,9 @@ def revision(request, id, revision):
 
 
     elif request.method == 'PUT':
-        #FIXME: check permissions
-        if request.user.is_authenticated():
-            user = request.user.email
-        else:
-            user = 'unknown'
+        if not request.user.is_authenticated():
+            return render_to_json_response({'error': 'You do not have permissions to rollback this place.'}, status=403) 
+        user = request.user.email
         data = json.loads(request.body)
         comment = data.get('comment', '')
         metadata = {
@@ -255,12 +304,13 @@ def add_delete_relation(request, id1, relation_type, id2):
     place1 = get_place_or_404(id1)
     place2 = get_place_or_404(id2)
     if relation_type not in Place.RELATION_CHOICES.keys():
-        return render_to_json_response({'error': 'Invalid relation type'}, status=404)  
+        return render_to_json_response({'error': 'Invalid relation type'}, status=404)
+
+    if not request.user.is_authenticated():
+        return render_to_json_response({'error': 'You do not have permissions to edit delations for this place.'}, status=403) 
+  
     comment = QueryDict(request.body).get("comment", "")
-    if request.user.is_authenticated():
-        username = request.user.email
-    else:
-        username = "unknown"
+    username = request.user.email
 
     metadata = {
         'user': username,

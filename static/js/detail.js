@@ -19,9 +19,9 @@ $(function() {
     if (!isEmptyPlace(place_geojson.geometry)) {
         var place_has_geo = true;
         jsonLayer = L.geoJson(place_geojson, {
-            'pointToLayer': function(feature, latlng) {
-                return L.circleMarker(latlng, $G.styles.geojsonHighlightedCSS);
-            }
+//            'pointToLayer': function(feature, latlng) {
+//                return L.circleMarker(latlng, $G.styles.geojsonHighlightedCSS);
+//            }
         }).addTo(map);
         var bounds = jsonLayer.getBounds();
         map.fitBounds(bounds);
@@ -68,6 +68,7 @@ $(function() {
                 var url = feature_url_prefix + feature.properties.id;
                 location.href = url;
             });
+            
         },
         'pointToLayer': function(feature, latlng) {
             return L.circleMarker(latlng, $G.styles.similarPlacesDefaultCSS);
@@ -114,6 +115,33 @@ $(function() {
             //console.log(data);
         });
     });
+
+    $('#searchPlaceButton').click(function(e){
+        var geojsonUrl = "?per_page=10&q="+$("#searchPlace").val()
+
+        e.preventDefault();
+        $('#similarPlaces').slideDown();
+        $('ul#similarPlaces .blankSimilarPlace').remove()
+        $('ul#similarPlaces hr').remove()
+        
+        $.getJSON($G.apiBase + "search.json" + geojsonUrl, function(features) {
+            $("#similarPlaces").prepend("<hr  />")
+            for (var i=0; i<features.features.length;i++) {
+                var f = features.features[i];
+                var props = f.properties;
+                var place = $("ul#searchedPlaces .blankSimilarPlace").clone()  //with data and events?
+                place.attr("style", "")
+                place.attr("data-id", props.id)
+                var similarPlaceA = $(".similarPlaceA", place)
+                var simhref = similarPlaceA.attr("href")
+                similarPlaceA.attr("href", simhref.slice(0, -1) + props.id)
+                similarPlaceA.html(props.name)
+                $("#similarPlaces").prepend(place)
+            }
+            
+            
+            });
+        });
 
     $('#showSimilar').toggle(function(e) {
         e.preventDefault();
@@ -385,11 +413,16 @@ $(function() {
 
 function makeFeatureEditable() {
 
+    if (place_geojson.geometry.type == 'MultiPolygon') {
+        var editableGroup = jsonLayer.getLayers()[0];
+    } else {
+        var editableGroup = jsonLayer;
+    }
     // Initialize the draw control and pass it the FeatureGroup of editable layers
     var options = {
         draw: false,
         edit: {
-            featureGroup: jsonLayer//.getLayers()[0]
+            featureGroup: editableGroup
         }        
     };
     var drawControl = new L.Control.Draw(options);
@@ -398,17 +431,82 @@ function makeFeatureEditable() {
     //jsonLayer.getLayers()[0].editing.enable();
     map.on("draw:edited", function(e) {
         var feature = e.layers.getLayers()[0];
-        setCoordinatesForFeature(feature);
-        place_geojson.geometry.coordinates = coords;
+        place_geojson.geometry = toGeoJSON(feature);
+        //place_geojson.geometry.coordinates = coords;
         //place_geojson.geometry = geom;        
     });   
 }
 
-function setCoordinatesForFeature(feature) {
-    var typ = feature.feature.geometry['type'];
-    var latlngs = feature.getLatLngs();
-    var coords = L.geoJSON.latLngToCoords(latlngs);
-    console.log(coords);    
+function toGeoJSON(target) {
+    if (target instanceof L.Marker) {
+        //Point
+        return {
+            coordinates: latLngToCoords(target.getLatLng()),
+            type: 'Point'
+        }
+    } else if (target instanceof L.MultiPolygon || target instanceof L.MultiPolyline) {
+        //MultiPolygon and MultiLineString
+        var multi = [];
+        var layers = target._layers;
+        for (var stamp in layers) {
+            multi.push(toGeoJSON(layers[stamp]).coordinates);
+        }
+        return {
+            coordinates: multi,
+            type: (target instanceof L.MultiPolygon) ? 'MultiPolygon': 'MultiLineString'
+        };
+    } else if (target instanceof L.Polygon) {
+        //Polygon
+        var coords = latLngsToCoords(target.getLatLngs());
+        return {
+            coordinates: [coords],
+            type: 'Polygon'
+        };
+    } else if (target instanceof L.Polyline) {
+        //Linestring
+        var coords = latLngsToCoords(target.getLatLngs());
+        return {
+            coordinates: coords,
+            type: 'LineString'
+        };
+    } else if (target instanceof L.FeatureGroup) {
+        //Multi point and GeometryCollection
+        var multi = [];
+        var layers = target._layers;
+        var points = true;
+        for (var stamp in layers) {
+            var json = toGeoJSON(layers[stamp]);
+            multi.push(json);
+            if (json.type !== 'Point') {
+                points = false;
+            }
+        }
+        if (points) {
+            var coords = multi.map(function(geo){
+                return geo.coordinates;
+            });
+            return {
+                coordinates: coords,
+                type: 'MultiPoint'
+            };
+        } else {
+            return {
+                geometries: multi,
+                type: 'GeometryCollection'
+            };
+        }
+    }
+}
+
+function latLngToCoords(latlng) {
+    return [latlng.lng, latlng.lat];
+}
+
+function latLngsToCoords(arrLatlng) {
+    var coords = [];
+    arrLatlng.forEach(function(latlng) {
+        coords.push(latLngToCoords(latlng));
+    });
     return coords;
 }
 
