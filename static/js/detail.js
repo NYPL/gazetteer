@@ -19,6 +19,16 @@ $(function() {
     if (!isEmptyPlace(place_geojson.geometry)) {
         var place_has_geo = true;
         jsonLayer = L.geoJson(place_geojson, {
+            'onEachFeature': function(feature, layer) {
+                var geomType = feature.geometry.type;
+                if (geomType == 'MultiPolygon') {
+                    layer.eachLayer(function(l) {
+                        L.setOptions(l, {'smoothFactor': 10});    
+                    });
+                } else if (geomType == 'Polygon') {
+                    L.setOptions(layer, {'smoothFactor': 10});
+                }
+            }
 //            'pointToLayer': function(feature, latlng) {
 //                return L.circleMarker(latlng, $G.styles.geojsonHighlightedCSS);
 //            }
