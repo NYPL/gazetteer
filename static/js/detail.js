@@ -145,6 +145,9 @@ $(function() {
                 var similarPlaceA = $(".similarPlaceA", place)
                 var simhref = similarPlaceA.attr("href")
                 similarPlaceA.attr("href", simhref.slice(0, -1) + props.id)
+                var admin_names = toAdminString(props)
+                var admin_span =  $(".admin_names", place)
+                admin_span.html(admin_names)
                 similarPlaceA.html(props.name)
                 $("#similarPlaces").prepend(place)
             }
@@ -535,7 +538,7 @@ function isEmptyPlace(geometry) {
     if (!geometry) return true;
     if ($.isEmptyObject(geometry)) return true;
     var coords = geometry.coordinates;
-    if (!coords) return true;
+    if (geometry.type == "Point" && coords.length < 2) return true;
 //    if (parseFloat(coords[0]) > 0 && parseFloat(coords[0]) < 1 && parseFloat(coords[1]) > 0 && parseFloat(coords[1]) < 1) return true;
     return false;
 }

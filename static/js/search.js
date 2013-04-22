@@ -69,7 +69,7 @@ $(window).load(function() {
     function getPopupHTML(props) {
         var $container = $("<div />").addClass("popupContainer");
         var $title = $("<h3 />").text(props.name).appendTo($container);
-        admin_names = toAdminString(props)
+        var admin_names = toAdminString(props)
         $("<span class='admin_names'>"+admin_names+"</span>").appendTo($container)
         var $type = $('<div />').html("<strong>Type:</strong> " + props.feature_code_name).appendTo($container);
         if (props.timeframe.hasOwnProperty("start")) {
@@ -374,7 +374,7 @@ function getRow(props) {
     var $a = $('<a />').attr("href", $G.placeUrlPrefix + props.id).text(props.name).appendTo($one);
     
 
-    admin_names = toAdminString(props)
+    var admin_names = toAdminString(props)
     $("<br /><span class='admin_names'>"+admin_names+"</span>").appendTo($one)
 
     $('<td />').addClass("col2").text(props.feature_code + ": " + props.feature_code_name).appendTo($tr);
@@ -526,6 +526,7 @@ function toAdminString(props){
     }
     return admin_names
     }
+
 
 })(jQuery);
 
