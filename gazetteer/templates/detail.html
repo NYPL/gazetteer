@@ -188,10 +188,7 @@
                                 <a class="similarPlaceA" href="{% url 'detail' place_id=2 %}" >
                                     <!--name -->
                                 </a>
-<<<<<<< HEAD
-=======
                                 <span class="admin_names"> </span>
->>>>>>> master
                                {% if user.is_authenticated %}
                                 <select class="relation_type">
                                     <option value="">------</option>
@@ -214,15 +211,12 @@
                                 <a class="similarPlaceA" href="{% url 'detail' place_id=p.properties.id %}">
                                     {{ p.properties.name }}
                                 </a>
-<<<<<<< HEAD
-=======
                                 {%if p.properties.admin %}
                                    <span class="admin_names">
                                         {{ p.properties.admin|to_admin_string }}
                                 {% endif %}
                                 </span>
                                 
->>>>>>> master
                                 {% if user.is_authenticated %}
                                 <select class="relation_type">
                                     <option value="">------</option>

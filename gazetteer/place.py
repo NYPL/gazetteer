@@ -336,9 +336,10 @@ class Place(object):
                 self.assign_admin()
                 
             #see if it's part of any composite places
-            for rel in self.relationships:
-                if rel["type"] == "comprises":
-                    do_after = True
+            if self.relationships is not None:
+                for rel in self.relationships:
+                    if rel["type"] == "comprises":
+                        do_after = True
 
         return do_after
             

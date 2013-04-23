@@ -343,11 +343,7 @@ class AdminBoundaryModelTestCase(PlaceTestCase):
         
      
     def test_add_admin_boundary(self):
-<<<<<<< HEAD
-        place = Place.objects.get("1111")
-=======
         place = Place.objects.get(self.place_1_id)
->>>>>>> master
         self.assertEqual(place.admin, [])
         
         place.add_admin({"id" : "newstate1", "name" : "new state", 
@@ -362,11 +358,7 @@ class AdminBoundaryModelTestCase(PlaceTestCase):
         self.assertEqual(place.admin[0]["name"], "new state renamed")
         
     def test_assign_admin_boundary(self):
-<<<<<<< HEAD
-        place = Place.objects.get("1111")
-=======
         place = Place.objects.get(self.place_1_id)
->>>>>>> master
         place.timeframe = {}  # NOTE: places will only get assigned if they dont have a timeframe.
         
         self.assertEqual(place.admin, [])   #no admin at the beginning
@@ -402,11 +394,7 @@ class AdminBoundaryModelTestCase(PlaceTestCase):
     
     #if the geometry changes it will automatically do admin assign
     def test_auto_assign(self):
-<<<<<<< HEAD
-        place = Place.objects.get("1111")
-=======
         place = Place.objects.get(self.place_1_id)
->>>>>>> master
         place.timeframe = {}  # NOTE: places will only get assigned if they dont have a timeframe.   
         place.save()
         place = place.copy()
@@ -514,13 +502,8 @@ class CompositePlaceTestCase(PlaceTestCase):
         self.assertLess(smaller_area, initial_area)
     
     def test_multipoint(self):
-<<<<<<< HEAD
-        place1 = Place.objects.get("1111")
-        place2 = Place.objects.get("2222")
-=======
         place1 = Place.objects.get(self.place_1_id)
         place2 = Place.objects.get(self.place_2_id)
->>>>>>> master
         comp_place1 = Place.objects.get(self.comp_place_id_1)
         comp_place1.add_relation(place1, "comprised_by", {"comment":"comp place comprised by point place1"})
         comp_place1.add_relation(place2, "comprised_by", {"comment":"comp place comprised by point place2"})
@@ -572,13 +555,8 @@ class ApiTestCase(PlaceTestCase):
     def tearDown(self):
         super(ApiTestCase, self).tearDown()
         self.test_user.delete()
-<<<<<<< HEAD
-
-    def test_get(self):
-=======
     
     def test_simple_search(self):
->>>>>>> master
         resp = self.c.get('/1.0/place/search.json?q=Wabash%20Municipal')
         self.assertEquals(resp.status_code, 200)
         results =  json.loads(resp.content)
