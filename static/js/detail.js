@@ -6,7 +6,7 @@ $(function() {
     
 //    var osmUrl='http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 //    var osmAttrib='Map data © openstreetmap contributors';
-    var osm = new L.TileLayer($G.osmUrl,{minZoom:1,maxZoom:18,attribution:$G.osmAttrib});
+    var osm = new L.TileLayer($G.osmUrl,{minZoom:1,maxZoom:18,attribution:$G.osmAttrib}).setZIndex(-1);
     map = new L.Map('map', {
         layers: [osm],
         center: new L.LatLng($G.centerLat, $G.centerLon),
