@@ -197,7 +197,10 @@ def similar(request, id):
         return render_to_json_response({'error': 'Place not found'}, status=404)          
 
     if request.method == 'GET':
-        similar_places = place.find_similar()
+        distance = request.GET.get("distance", "25km")
+        similarity = float(request.GET.get("similarity", 0.25))
+        alternate = (request.GET.get("alternate", "true")[0] == "t")
+        similar_places = place.find_similar(distance)
         geojson = {
             'type': 'FeatureCollection',
             'total': similar_places['total'],

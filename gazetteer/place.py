@@ -172,21 +172,24 @@ class PlaceManager:
     #returns similar objects
     #distance (optional) string representation of the distance to look for similar places. Defaults to 10km
     #if the place has no centroid defined, it will just do a search for any similar place
-    def find_similar(self, place, distance="10km"):
-        
-        geo_filter = {}
+    def find_similar(self, place, distance="25km", similarity=0.25, include_alternates=True ):
+        feature_class = FeatureCode.objects.get(typ=place.feature_code).cls
+        type_list = [code.typ for code in FeatureCode.objects.filter(cls=feature_class)]
+        geo_filter = [
+            {"terms": {"feature_code": type_list}}
+        ]
         sort = {}
         if place.centroid:
             centroid = place.centroid
             centroid_lon, centroid_lat = place.centroid[0], place.centroid[1]
             
             #just return those similar places within specified distance of the place
-            geo_filter = { 
-                "geo_distance" : {
+            geo_filter.append({
+                "geo_distance": {
                     "distance" : distance,
                     "place.centroid" : [centroid_lon, centroid_lat]
                 }
-            }
+            })
             
             #sort the places by the closest first, then match
             sort = {
@@ -195,14 +198,33 @@ class PlaceManager:
                     "order" : "asc",
                     "distance_type" : "plane" }
             }
-        
-        #more like this query, similar to the name.
-        mlt_query = { 
-            "more_like_this" : {
-                "like_text" : place.name,
-                "fields" : ["name"],
-                "min_term_freq" : 1,
-                "min_doc_freq" : 1,
+
+        fuzzy_queries = []
+        name_fields = ["name"]
+        names = [place.name]
+        if include_alternates:
+            alternates = None
+            if type(place.alternate) is list:
+                alternates = place.alternate
+            elif type(place.alternate) is dict:
+                alternates = [place.alternate]
+            if alternates:
+                # exclude postcodes... why are they even in altnames?
+                names += [alt["name"] for alt in place.alternate if alt.get("name") and alt.get("lang") != "post"] # FIXME: check for all digits
+            name_fields += "alternate.name" 
+        for name in names:
+            fuzzy_queries.append({
+                "fuzzy_like_this": {
+                    "fields": name_fields,
+                    "like_text": name,
+                    "min_similarity": similarity
+                }
+            })
+
+        bool_query = {
+            "bool": {
+                "minimum_number_should_match" : 1,
+                "should": fuzzy_queries
             }
         }
             
@@ -210,8 +232,8 @@ class PlaceManager:
             'sort' : [sort],
             'query': {
                 "filtered": {
-                    "query" : mlt_query,
-                    "filter": geo_filter
+                    "query" : bool_query,
+                    "filter": {"and": geo_filter}
                 }}
         }
         
@@ -402,7 +424,7 @@ class Place(object):
         d = {}
         d['type'] = 'Feature'
         d['geometry'] = self.geometry
-
+        if d['geometry']: d['geometry']['centroid'] = self.centroid
         d['properties'] = { 
             'id': self.id,
             'name': self.name,
@@ -427,8 +449,8 @@ class Place(object):
         p = Place(json_obj)
         
 
-    def find_similar(self):
-        return Place.objects.find_similar(self)
+    def find_similar(self, *args):
+        return Place.objects.find_similar(self, *args)
 
     def history(self):
         return Place.objects.history(self)
