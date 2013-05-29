@@ -1,0 +1,3 @@
+git+https://github.com/schuyler/arrest
+hg+https://code.google.com/p/py-editdist/
+haversine
