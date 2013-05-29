@@ -205,7 +205,7 @@ def similar(request, id):
             'type': 'FeatureCollection',
             'total': similar_places['total'],
             'max_score': similar_places['max_score'],
-            'features': [p.to_geojson() for p in similar_places['places']]
+            'features': similar_places["places"] #[p.to_geojson() for p in similar_places['places']]
         }
         return render_to_json_response(geojson)
         #return render_to_json_response({'error': 'Not implemented'}, status=501)

@@ -4,11 +4,19 @@ from django.conf import settings
 import json
 import datetime
 import mx.DateTime
+import editdist, re
 
 from django.contrib.gis.geos import GEOSGeometry
 from django.contrib.gis.geos import MultiPolygon
 from django.contrib.gis.geos import MultiPoint
 from models import FeatureCode, AdminBoundary
+
+def median_absolute_deviation(values):
+    if not values: return 0.0
+    sorted_values = list(sorted(values))
+    median = sorted_values[len(sorted_values)/2]
+    deviations = list(sorted(abs(v - median) for v in values))
+    return deviations[len(deviations)/2]
 
 class PlaceManager:
 
@@ -173,34 +181,6 @@ class PlaceManager:
     #distance (optional) string representation of the distance to look for similar places. Defaults to 10km
     #if the place has no centroid defined, it will just do a search for any similar place
     def find_similar(self, place, distance="25km", similarity=0.25, include_alternates=True ):
-        feature_class = FeatureCode.objects.get(typ=place.feature_code).cls
-        type_list = [code.typ for code in FeatureCode.objects.filter(cls=feature_class)]
-        geo_filter = [
-            {"terms": {"feature_code": type_list}}
-        ]
-        sort = {}
-        if place.centroid:
-            centroid = place.centroid
-            centroid_lon, centroid_lat = place.centroid[0], place.centroid[1]
-            
-            #just return those similar places within specified distance of the place
-            geo_filter.append({
-                "geo_distance": {
-                    "distance" : distance,
-                    "place.centroid" : [centroid_lon, centroid_lat]
-                }
-            })
-            
-            #sort the places by the closest first, then match
-            sort = {
-                "_geo_distance" : {
-                    "place.centroid" : [centroid_lon, centroid_lat],
-                    "order" : "asc",
-                    "distance_type" : "plane" }
-            }
-
-        fuzzy_queries = []
-        name_fields = ["name"]
         names = [place.name]
         if include_alternates:
             alternates = None
@@ -210,42 +190,107 @@ class PlaceManager:
                 alternates = [place.alternate]
             if alternates:
                 # exclude postcodes... why are they even in altnames?
-                names += [alt["name"] for alt in place.alternate if alt.get("name") and alt.get("lang") != "post"] # FIXME: check for all digits
-            name_fields += "alternate.name" 
-        for name in names:
-            fuzzy_queries.append({
+                names += [alt["name"] for alt in place.alternate if len(alt.get("name", "")) > 1 and alt.get("lang") not in ("post", "link")] 
+        term_filter = {}
+        if place.feature_code != "AUTH":
+            feature_class = FeatureCode.objects.get(typ=place.feature_code).cls
+            type_list = list(set(code.typ for code in FeatureCode.objects.filter(cls=feature_class)))
+            term_filter = {"terms": {"feature_code": type_list}}
+        sort = geo_filter = {}
+        query = None
+        if place.centroid:
+            centroid = place.centroid
+            centroid_lon, centroid_lat = place.centroid[0], place.centroid[1]
+            
+            #just return those similar places within specified distance of the place
+            geo_filter = {
+                "geo_distance": {
+                    "distance" : distance,
+                    "place.centroid" : [centroid_lon, centroid_lat]
+                }
+            }
+            sort = {
+                "_geo_distance" : {
+                    "place.centroid" : [centroid_lon, centroid_lat],
+                    "order" : "asc"
+                    }
+            }
+
+            # get them all, because we need to calculate densities
+            query = {"match_all": {}}
+        else:
+            query = {
                 "fuzzy_like_this": {
-                    "fields": name_fields,
-                    "like_text": name,
+                    "fields": ["name", "alternate.name"],
+                    "like_text": names.join(" "),
+                    "max_query_terms": 100,
                     "min_similarity": similarity
                 }
-            })
-
-        bool_query = {
-            "bool": {
-                "minimum_number_should_match" : 1,
-                "should": fuzzy_queries
             }
-        }
-            
+            sort = "_score"
+
         query = {
-            'sort' : [sort],
             'query': {
                 "filtered": {
-                    "query" : bool_query,
-                    "filter": {"and": geo_filter}
-                }}
+                    "query": query,
+                    "filter": {"and": [term_filter, geo_filter]}
+                }
+            },
+            'sort': [sort]
         }
         
-        results = self.conn.search(query, index=self.index, doc_type=self.doc_type)
+        results = self.conn.search(query, index=self.index, doc_type=self.doc_type, es_size=50)
         places = []
-        if len(results.hits["hits"]) > 1:
-            for result in results.hits["hits"]:
-                if result.id == place.id:
-                    continue
-                result.source['id'] = result.id
-                places.append(Place(result.source))
-        return {"total": results.hits["total"], "max_score": results.hits["max_score"], "places": places}
+        if not results.hits["hits"]:
+            return {"total": 0, "max_score": 0, "places": places}
+
+        for result in results.hits["hits"]:
+            if result.id == place.id: continue
+            result.source['id'] = result.id
+            if result.sort:
+                dist = result.sort[0]
+            else:
+                dist = 0.0
+            places.append((dist, result.source))
+
+        cls_mad = median_absolute_deviation([dist for dist, cand in places])
+        typ_mad = median_absolute_deviation([dist for dist, cand in places if cand["feature_code"] == place.feature_code])
+        cls_norm = typ_norm = 0.0
+        if cls_mad > 0: cls_norm = max(dist/cls_mad for dist, cand in places)
+        if typ_mad > 0: typ_norm = max(dist/typ_mad for dist, cand in places)
+        candidates = []
+        parens = re.compile("\s*\([^)]+\)")
+        for dist, cand in places:
+            text_dists = []
+            cand_names = [cand["name"]]
+            if include_alternates and type(cand.get("alternate")) is list:
+                for alt_name in cand["alternate"]:
+                    if len(alt_name.get("name", "")) > 1 and alt_name.get("lang") not in ("post", "link"):
+                        cand_names.append(alt_name["name"])
+            for name1 in names:
+                for name2 in cand_names:
+                    name1 = parens.sub("", name1)
+                    name2 = parens.sub("", name1)
+                    d = editdist.distance(name1.encode("utf8"), name2.encode("utf8")) / float(len(name1) + len(name2))
+                    text_dists.append(d)
+            text_dist = min(text_dists)
+            cls_dist = (dist / cls_mad) / cls_norm if cls_mad > 0 and cls_norm > 0 else dist / float(distance[0:-2])
+            typ_dist = (dist / typ_mad) / typ_norm if typ_mad > 0 and typ_norm > 0 else dist / float(distance[0:-2])
+            confidence = (1 - text_dist) * (1 - typ_dist)
+            if cand["feature_code"] != place.feature_code: confidence *= (1 - cls_dist)
+            candidates.append((confidence, dist, cand))
+        candidates.sort()
+        candidates.reverse()
+        similar = []
+        for confidence, dist, cand in candidates[:10]:
+            result = {}
+            for key in ["id", "name", "feature_code", "uris"]:
+                result[key] = cand[key]
+            result["distance"] = dist
+            result["confidence"] = confidence
+            similar.append(result)
+
+        return {"total": results.hits["total"], "max_score": results.hits["max_score"], "places": similar}
     
     #gets the history and revisions of a record
     def history(self, place):
