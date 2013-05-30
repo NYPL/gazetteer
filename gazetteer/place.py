@@ -5,6 +5,8 @@ import json
 import datetime
 import mx.DateTime
 import editdist, re
+from math import radians, cos, sin, asin, sqrt
+
 
 from django.contrib.gis.geos import GEOSGeometry
 from django.contrib.gis.geos import MultiPolygon
@@ -17,6 +19,17 @@ def median_absolute_deviation(values):
     median = sorted_values[len(sorted_values)/2]
     deviations = list(sorted(abs(v - median) for v in values))
     return deviations[len(deviations)/2]
+
+def haversine((lon1, lat1), (lon2, lat2)):
+    # convert decimal degrees to radians 
+    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+    # haversine formula 
+    dlon = lon2 - lon1 
+    dlat = lat2 - lat1 
+    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+    c = 2 * asin(sqrt(a)) 
+    km = 6367 * c
+    return km 
 
 class PlaceManager:
 
@@ -239,11 +252,12 @@ class PlaceManager:
             'sort': [sort]
         }
         
-        results = self.conn.search(query, index=self.index, doc_type=self.doc_type, es_size=50)
+        results = self.conn.search(query, index=self.index, doc_type=self.doc_type, es_size=100)
         places = []
         if not results.hits["hits"]:
             return {"total": 0, "max_score": 0, "places": places}
 
+        coords = [] 
         for result in results.hits["hits"]:
             if result.id == place.id: continue
             result.source['id'] = result.id
@@ -251,9 +265,11 @@ class PlaceManager:
                 dist = result.sort[0]
             else:
                 dist = 0.0
+            coords.append(result.source["centroid"])
             places.append((dist, result.source))
 
-        cls_mad = median_absolute_deviation([dist for dist, cand in places])
+        distances = [haversine(a, b) for a in coords for b in coords if a != b]
+        cls_mad = median_absolute_deviation(distances)
         typ_mad = median_absolute_deviation([dist for dist, cand in places if cand["feature_code"] == place.feature_code])
         cls_norm = typ_norm = 0.0
         if cls_mad > 0: cls_norm = max(dist/cls_mad for dist, cand in places)
@@ -276,8 +292,9 @@ class PlaceManager:
             text_dist = min(text_dists)
             cls_dist = (dist / cls_mad) / cls_norm if cls_mad > 0 and cls_norm > 0 else dist / float(distance[0:-2])
             typ_dist = (dist / typ_mad) / typ_norm if typ_mad > 0 and typ_norm > 0 else dist / float(distance[0:-2])
-            confidence = (1 - text_dist) * (1 - typ_dist)
-            if cand["feature_code"] != place.feature_code: confidence *= (1 - cls_dist)
+            confidence = (1 - text_dist) * (1 - cls_dist)
+            #confidence = (1 - text_dist) * (1 - typ_dist)
+            #if cand["feature_code"] != place.feature_code: confidence *= (1 - cls_dist)
             candidates.append((confidence, dist, cand))
         candidates.sort()
         candidates.reverse()
